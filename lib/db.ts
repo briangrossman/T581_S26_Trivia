@@ -9,10 +9,6 @@ type SqlTag = <T = Record<string, unknown>>(
   ...values: any[]
 ) => Promise<{ rows: T[] }>;
 
-// Lazy singleton — only create the Neon client when first query is run,
-// not at module import time (which would fail during Next.js build without POSTGRES_URL).
-let _db: ReturnType<typeof neon> | null = null;
-
 /**
  * @neondatabase/serverless's HTTP driver requires the *direct* (non-pooler)
  * endpoint. The Vercel-Neon integration often sets POSTGRES_URL to the
@@ -29,19 +25,26 @@ export function getNeonUrl(): string {
   return url.replace(/-pooler(\.[^/]+\.aws\.neon\.tech)/, '$1');
 }
 
-function getDb(): ReturnType<typeof neon> {
-  if (!_db) {
-    _db = neon(getNeonUrl());
-  }
-  return _db;
-}
-
+/**
+ * Create a fresh neon() client per query with explicit cache: 'no-store'.
+ *
+ * We intentionally do NOT use a module-level singleton here.  A singleton
+ * captures the `fetch` reference at module-load time, before Next.js can
+ * apply its `force-dynamic` / `no-store` patches.  Creating a new client
+ * per call ensures:
+ *   1. The currently-patched `fetch` is used (respects `force-dynamic`).
+ *   2. The explicit `cache: 'no-store'` fetchOption bypasses any HTTP-level
+ *      caching (Vercel edge, Next.js data cache, or Neon HTTP cache).
+ */
 export const sql: SqlTag = async <T = Record<string, unknown>>(
   strings: TemplateStringsArray,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ...values: any[]
 ): Promise<{ rows: T[] }> => {
-  const result = await getDb()(strings, ...values);
+  const db = neon(getNeonUrl(), {
+    fetchOptions: { cache: 'no-store' },
+  });
+  const result = await db(strings, ...values);
   return { rows: result as T[] };
 };
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGameByCode, getGameById, getQuestionsForRound, getStudentAnswers, countStudents, getNeonUrl } from '@/lib/db';
+import { getGameByCode, getGameById, getQuestionsForRound, getStudentAnswers, countStudents, getNeonUrl, sql } from '@/lib/db';
 
 // Always respond fresh — never cache game state
 export const dynamic = 'force-dynamic';
@@ -20,6 +20,13 @@ export async function GET(
 
     // Debug: also query by ID to detect any inconsistency in Neon query results
     const gameById = await getGameById(game.id);
+
+    // Debug: query DB clock to verify we're getting a live (non-cached) response.
+    // If dbTime is stale (old timestamp), the HTTP response itself is being cached.
+    const dbTimeResult = await sql<{ db_time: string; db_round: number; db_status: string }>`
+      SELECT NOW() as db_time, current_round as db_round, status as db_status
+      FROM games WHERE id = ${game.id} LIMIT 1
+    `;
 
     const [studentCount, currentRoundQuestions] = await Promise.all([
       countStudents(game.id),
@@ -53,6 +60,8 @@ export async function GET(
         serverTime: new Date().toISOString(),
         byCode: { current_round: game.current_round, status: game.status },
         byId: { current_round: gameById?.current_round, status: gameById?.status },
+        // Direct re-query with DB clock — if db_time is stale, the HTTP layer is caching
+        directQuery: dbTimeResult.rows[0] ?? null,
         gameId: game.id,
         codeQueried: code,
         questionsCount: currentRoundQuestions.length,
