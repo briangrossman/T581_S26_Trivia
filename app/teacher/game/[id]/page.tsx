@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { Game, Question, Student, Answer, StudentScore } from '@/lib/types';
@@ -51,8 +51,8 @@ function AnswerCell({ answer, question }: { answer: Answer | undefined; question
   );
 }
 
-export default function TeacherGamePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function TeacherGamePage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const router = useRouter();
 
   const [game, setGame] = useState<Game | null>(null);

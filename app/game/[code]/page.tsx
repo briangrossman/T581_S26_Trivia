@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, use } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { StudentQuestion, Answer, StudentSession, GameStateResponse } from '@/lib/types';
 
 const STORAGE_KEY = 'trivia_student_session';
@@ -22,8 +22,8 @@ function getOptionText(q: StudentQuestion, key: string): string | null {
   return typeof val === 'string' ? val : null;
 }
 
-export default function StudentGamePage({ params }: { params: Promise<{ code: string }> }) {
-  const { code } = use(params);
+export default function StudentGamePage({ params }: { params: { code: string } }) {
+  const { code } = params;
   const upperCode = code.toUpperCase();
 
   const [studentState, setStudentState] = useState<StudentState>('loading');
