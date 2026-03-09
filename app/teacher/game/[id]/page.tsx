@@ -64,6 +64,7 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [showFinalScores, setShowFinalScores] = useState(false);
+  const [actionDebug, setActionDebug] = useState<string | null>(null);
 
   const fetchGameState = useCallback(async () => {
     try {
@@ -107,6 +108,7 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
     if (!game) return;
     setActionLoading(true);
     setError('');
+    setActionDebug(null);
 
     try {
       const isLastRound = game.current_round === 4;
@@ -117,6 +119,9 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
       });
 
       const data = await res.json();
+      // Always capture the response for debugging
+      setActionDebug(JSON.stringify({ status: res.status, body: data }, null, 2));
+
       if (res.ok) {
         setGame(data.game);
         if (data.game.status === 'finished') {
@@ -126,8 +131,10 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
       } else {
         setError(data.error || 'Action failed');
       }
-    } catch {
-      setError('Network error');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setError(msg);
+      setActionDebug(JSON.stringify({ status: 'network_error', error: msg }));
     } finally {
       setActionLoading(false);
     }
@@ -261,10 +268,22 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
                   ? 'Scoring Round 3 Prompts...'
                   : `${ROUND_LABELS[game.current_round]} — Active`}
               </h2>
-              {error && <p className="text-red-600 text-sm mt-1">{error}</p>}
+              <p className="text-xs text-gray-400 mt-0.5">Game ID: {id} · DB round: {game.current_round} · status: {game.status}</p>
+              {error && (
+                <p className="text-red-600 font-semibold mt-2 text-sm bg-red-50 border border-red-200 rounded px-3 py-2">
+                  ⚠️ Error: {error}
+                </p>
+              )}
             </div>
             {getRoundButton()}
           </div>
+          {/* Temporary debug — shows the raw API response after clicking a round button */}
+          {actionDebug && (
+            <details className="mt-4" open>
+              <summary className="text-xs text-gray-400 cursor-pointer">Last action response (debug)</summary>
+              <pre className="mt-1 text-xs bg-gray-100 rounded p-3 overflow-x-auto">{actionDebug}</pre>
+            </details>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

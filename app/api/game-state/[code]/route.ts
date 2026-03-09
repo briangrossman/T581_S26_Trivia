@@ -55,6 +55,7 @@ export async function GET(
         byId: { current_round: gameById?.current_round, status: gameById?.status },
         gameId: game.id,
         codeQueried: code,
+        questionsCount: currentRoundQuestions.length,
       },
     }, {
       headers: {
