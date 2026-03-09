@@ -65,13 +65,15 @@ export default function StudentGamePage({ params }: { params: { code: string } }
       const data: GameStateResponse = await res.json();
       setGameState(data);
 
-      // Build map of already-submitted answers from server
+      // Build map of already-submitted answers from server.
+      // MERGE with existing state (don't replace) so optimistic updates survive
+      // the ~2s window before the POST is confirmed by the next poll.
       if (data.studentAnswers) {
         const map: Record<number, string> = {};
         for (const a of data.studentAnswers) {
           map[a.question_id] = a.answer_text;
         }
-        setSubmittedAnswers(map);
+        setSubmittedAnswers(prev => ({ ...prev, ...map }));
       }
 
       // Determine UI state
@@ -146,8 +148,15 @@ export default function StudentGamePage({ params }: { params: { code: string } }
     if (!session || submittedAnswers[questionId]) return;
     setSubmitting((prev) => ({ ...prev, [questionId]: true }));
 
-    // Optimistic update
-    setSubmittedAnswers((prev) => ({ ...prev, [questionId]: choice }));
+    // Optimistic update — compute new map so we can check completion immediately
+    const newAnswers = { ...submittedAnswers, [questionId]: choice };
+    setSubmittedAnswers(newAnswers);
+
+    // If this was the last unanswered question, jump straight to 'waiting'
+    const questions = gameState?.currentRoundQuestions ?? [];
+    if (questions.length > 0 && questions.every((q) => newAnswers[q.id])) {
+      setStudentState('waiting');
+    }
 
     try {
       await fetch('/api/answers', {
@@ -173,7 +182,16 @@ export default function StudentGamePage({ params }: { params: { code: string } }
     if (!text) return;
 
     setSubmitting((prev) => ({ ...prev, [questionId]: true }));
-    setSubmittedAnswers((prev) => ({ ...prev, [questionId]: text }));
+
+    // Optimistic update — compute new map so we can check completion immediately
+    const newAnswers = { ...submittedAnswers, [questionId]: text };
+    setSubmittedAnswers(newAnswers);
+
+    // If this was the last unanswered question, jump straight to 'waiting'
+    const questions = gameState?.currentRoundQuestions ?? [];
+    if (questions.length > 0 && questions.every((q) => newAnswers[q.id])) {
+      setStudentState('waiting');
+    }
 
     try {
       await fetch('/api/answers', {
