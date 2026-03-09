@@ -13,9 +13,25 @@ type SqlTag = <T = Record<string, unknown>>(
 // not at module import time (which would fail during Next.js build without POSTGRES_URL).
 let _db: ReturnType<typeof neon> | null = null;
 
+/**
+ * @neondatabase/serverless's HTTP driver requires the *direct* (non-pooler)
+ * endpoint. The Vercel-Neon integration often sets POSTGRES_URL to the
+ * PgBouncer pooler URL (hostname contains "-pooler"), which causes
+ * inconsistent read-after-write behaviour: writes commit but subsequent
+ * reads from a different HTTP connection return stale data.
+ *
+ * We strip "-pooler" from the hostname to obtain the direct endpoint URL.
+ * e.g. ep-foo-pooler.us-east-1.aws.neon.tech → ep-foo.us-east-1.aws.neon.tech
+ */
+function getNeonUrl(): string {
+  const url = process.env.POSTGRES_URL!;
+  // Replace "-pooler." with "." only in the hostname portion of the URL.
+  return url.replace(/-pooler(\.[^/]+\.aws\.neon\.tech)/, '$1');
+}
+
 function getDb(): ReturnType<typeof neon> {
   if (!_db) {
-    _db = neon(process.env.POSTGRES_URL!);
+    _db = neon(getNeonUrl());
   }
   return _db;
 }
