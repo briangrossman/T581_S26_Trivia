@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getTeacherFromCookies } from '@/lib/auth';
-import { getGameById, sql } from '@/lib/db';
+import { getGameById, sql, getNeonUrl } from '@/lib/db';
 import { scorePromptWriting } from '@/lib/claude';
 import type { Question, Answer } from '@/lib/types';
 
@@ -112,8 +112,9 @@ export async function POST(
 
     const updated = await getGameById(gameId);
     console.log('[round] updated game:', updated);
-    const pgHost = (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, '');
-    return NextResponse.json({ game: updated, _debug: { pgHost } });
+    const pgHost = getNeonUrl().replace(/^[^@]+@/, '').replace(/\/.*$/, '');
+    const pgHostRaw = (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, '');
+    return NextResponse.json({ game: updated, _debug: { pgHost, pgHostRaw } });
   } catch (err) {
     console.error('POST /api/games/[id]/round error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

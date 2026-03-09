@@ -23,7 +23,7 @@ let _db: ReturnType<typeof neon> | null = null;
  * We strip "-pooler" from the hostname to obtain the direct endpoint URL.
  * e.g. ep-foo-pooler.us-east-1.aws.neon.tech → ep-foo.us-east-1.aws.neon.tech
  */
-function getNeonUrl(): string {
+export function getNeonUrl(): string {
   const url = process.env.POSTGRES_URL!;
   // Replace "-pooler." with "." only in the hostname portion of the URL.
   return url.replace(/-pooler(\.[^/]+\.aws\.neon\.tech)/, '$1');

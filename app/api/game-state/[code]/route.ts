@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGameByCode, getGameById, getQuestionsForRound, getStudentAnswers, countStudents } from '@/lib/db';
+import { getGameByCode, getGameById, getQuestionsForRound, getStudentAnswers, countStudents, getNeonUrl } from '@/lib/db';
 
 // Always respond fresh — never cache game state
 export const dynamic = 'force-dynamic';
@@ -56,8 +56,9 @@ export async function GET(
         gameId: game.id,
         codeQueried: code,
         questionsCount: currentRoundQuestions.length,
-        // Which Neon endpoint is this route reading from?
-        pgHost: (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, ''),
+        // Show the ACTUAL URL neon() uses (after -pooler stripping), not the raw env var
+        pgHost: getNeonUrl().replace(/^[^@]+@/, '').replace(/\/.*$/, ''),
+        pgHostRaw: (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, ''),
       },
     }, {
       headers: {
