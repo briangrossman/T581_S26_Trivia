@@ -61,9 +61,11 @@ export async function POST(
       if (game.current_round < MAX_ROUND) {
         return NextResponse.json({ error: 'Cannot finish before completing all rounds' }, { status: 400 });
       }
-      await sql`
+      const finishResult = await sql<{ id: number }>`
         UPDATE games SET status = 'finished', current_round = 5 WHERE id = ${gameId}
+        RETURNING id
       `;
+      console.log('[round] finish UPDATE rows:', finishResult.rows);
       const updated = await getGameById(gameId);
       console.log('[round] game finished, updated:', updated);
       return NextResponse.json({ game: updated });
@@ -92,12 +94,21 @@ export async function POST(
       }
     }
 
-    // Move to next round
+    // Move to next round — use RETURNING to verify the UPDATE actually ran
     console.log('[round] running UPDATE: current_round =', nextRound, 'WHERE id =', gameId);
-    await sql`
+    const updateResult = await sql<{ id: number; current_round: number; status: string }>`
       UPDATE games SET current_round = ${nextRound}, status = 'active' WHERE id = ${gameId}
+      RETURNING id, current_round, status
     `;
-    console.log('[round] UPDATE complete, fetching updated game');
+    console.log('[round] UPDATE RETURNING rows:', updateResult.rows);
+
+    if (updateResult.rows.length === 0) {
+      console.error('[round] UPDATE matched 0 rows — gameId may be wrong:', gameId);
+      return NextResponse.json(
+        { error: `Game update failed: no game found with id=${gameId}` },
+        { status: 500 }
+      );
+    }
 
     const updated = await getGameById(gameId);
     console.log('[round] updated game:', updated);
