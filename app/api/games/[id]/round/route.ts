@@ -112,7 +112,8 @@ export async function POST(
 
     const updated = await getGameById(gameId);
     console.log('[round] updated game:', updated);
-    return NextResponse.json({ game: updated });
+    const pgHost = (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, '');
+    return NextResponse.json({ game: updated, _debug: { pgHost } });
   } catch (err) {
     console.error('POST /api/games/[id]/round error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

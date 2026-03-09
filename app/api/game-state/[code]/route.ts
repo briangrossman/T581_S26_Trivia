@@ -56,6 +56,8 @@ export async function GET(
         gameId: game.id,
         codeQueried: code,
         questionsCount: currentRoundQuestions.length,
+        // Which Neon endpoint is this route reading from?
+        pgHost: (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, ''),
       },
     }, {
       headers: {
