@@ -75,18 +75,19 @@ export default function StudentGamePage({ params }: { params: { code: string } }
       // Determine UI state
       if (data.game.status === 'finished') {
         setStudentState('game_over');
-      } else if (data.game.current_round === 0) {
+      } else if (data.game.current_round === 0 || data.game.status === 'lobby') {
         setStudentState('lobby');
-      } else if (data.game.status === 'active' && data.currentRoundQuestions.length > 0) {
-        // Check if student has answered all current round questions
-        const allAnswered = data.currentRoundQuestions.every(
-          (q) => data.studentAnswers?.some((a) => a.question_id === q.id)
-        );
-        setStudentState(allAnswered ? 'waiting' : 'answering');
       } else if (data.game.status === 'scoring') {
         setStudentState('waiting');
-      } else {
-        setStudentState('lobby');
+      } else if (data.game.status === 'active') {
+        if (data.currentRoundQuestions.length > 0) {
+          // Check if student has answered all current round questions
+          const allAnswered = data.currentRoundQuestions.every(
+            (q) => data.studentAnswers?.some((a) => a.question_id === q.id)
+          );
+          setStudentState(allAnswered ? 'waiting' : 'answering');
+        }
+        // If questions not loaded yet, keep current state (don't reset to lobby)
       }
     } catch {
       // ignore poll errors
