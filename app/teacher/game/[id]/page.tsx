@@ -67,9 +67,10 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
 
   const fetchGameState = useCallback(async () => {
     try {
+      const t = Date.now();
       const [gameRes, scoresRes] = await Promise.all([
-        fetch(`/api/games/${id}`),
-        fetch(`/api/games/${id}/scores`),
+        fetch(`/api/games/${id}?_t=${t}`, { cache: 'no-store' }),
+        fetch(`/api/games/${id}/scores?_t=${t}`, { cache: 'no-store' }),
       ]);
 
       if (gameRes.status === 401) {

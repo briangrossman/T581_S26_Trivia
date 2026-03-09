@@ -56,8 +56,10 @@ export default function StudentGamePage({ params }: { params: { code: string } }
   const pollGameState = useCallback(async (currentSession: StudentSession | null) => {
     if (!currentSession) return;
     try {
+      // _t timestamp busts browser/CDN cache so every poll hits the server fresh
       const res = await fetch(
-        `/api/game-state/${upperCode}?studentId=${currentSession.studentId}`
+        `/api/game-state/${upperCode}?studentId=${currentSession.studentId}&_t=${Date.now()}`,
+        { cache: 'no-store' }
       );
       if (!res.ok) return;
       const data: GameStateResponse = await res.json();
