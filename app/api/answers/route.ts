@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     // Validate student belongs to this game
     const student = await getStudentById(parseInt(studentId, 10));
-    if (!student || student.game_id !== parseInt(gameId, 10)) {
+    if (!student || Number(student.game_id) !== parseInt(gameId, 10)) {
       return NextResponse.json({ error: 'Student not found in this game' }, { status: 403 });
     }
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate the question belongs to the current round
-    if (question.round_number !== game.current_round) {
+    if (Number(question.round_number) !== Number(game.current_round)) {
       return NextResponse.json(
         { error: 'This question is not part of the current round' },
         { status: 409 }
@@ -54,27 +54,53 @@ export async function POST(request: NextRequest) {
     // Score immediately for MC and coding; null for prompt writing
     const scored = scoreAnswer(question, trimmedAnswer, numQuestionsInRound);
 
-    const result = await sql`
-      INSERT INTO answers (student_id, game_id, question_id, round_number, answer_text, score, is_correct, scored_at)
-      VALUES (
-        ${student.id},
-        ${game.id},
-        ${question.id},
-        ${question.round_number},
-        ${trimmedAnswer},
-        ${scored?.score ?? null},
-        ${scored?.is_correct ?? null},
-        ${scored ? 'NOW()' : null}
-      )
-      ON CONFLICT (student_id, question_id)
-      DO UPDATE SET
-        answer_text = EXCLUDED.answer_text,
-        score = EXCLUDED.score,
-        is_correct = EXCLUDED.is_correct,
-        scored_at = EXCLUDED.scored_at,
-        submitted_at = NOW()
-      RETURNING *
-    `;
+    // Split into two queries to avoid passing 'NOW()' as a string parameter
+    let result;
+    if (scored) {
+      result = await sql`
+        INSERT INTO answers (student_id, game_id, question_id, round_number, answer_text, score, is_correct, scored_at)
+        VALUES (
+          ${student.id},
+          ${game.id},
+          ${question.id},
+          ${question.round_number},
+          ${trimmedAnswer},
+          ${scored.score},
+          ${scored.is_correct},
+          NOW()
+        )
+        ON CONFLICT (student_id, question_id)
+        DO UPDATE SET
+          answer_text = EXCLUDED.answer_text,
+          score = EXCLUDED.score,
+          is_correct = EXCLUDED.is_correct,
+          scored_at = NOW(),
+          submitted_at = NOW()
+        RETURNING *
+      `;
+    } else {
+      result = await sql`
+        INSERT INTO answers (student_id, game_id, question_id, round_number, answer_text, score, is_correct, scored_at)
+        VALUES (
+          ${student.id},
+          ${game.id},
+          ${question.id},
+          ${question.round_number},
+          ${trimmedAnswer},
+          NULL,
+          NULL,
+          NULL
+        )
+        ON CONFLICT (student_id, question_id)
+        DO UPDATE SET
+          answer_text = EXCLUDED.answer_text,
+          score = NULL,
+          is_correct = NULL,
+          scored_at = NULL,
+          submitted_at = NOW()
+        RETURNING *
+      `;
+    }
 
     return NextResponse.json({ answer: result.rows[0] });
   } catch (err) {

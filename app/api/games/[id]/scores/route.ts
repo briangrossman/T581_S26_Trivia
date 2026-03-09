@@ -4,7 +4,7 @@ import { getGameById, getRoundScores } from '@/lib/db';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: { id: string } }
 ) {
   const teacher = await getTeacherFromCookies();
   if (!teacher) {
@@ -12,7 +12,7 @@ export async function GET(
   }
 
   try {
-    const { id } = await params;
+    const { id } = params;
     const gameId = parseInt(id, 10);
     const game = await getGameById(gameId);
 
@@ -20,7 +20,7 @@ export async function GET(
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });
     }
 
-    if (game.teacher_id !== teacher.teacherId) {
+    if (Number(game.teacher_id) !== Number(teacher.teacherId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

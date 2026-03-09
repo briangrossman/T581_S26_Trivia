@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGameByCode, getQuestionsForRound, getStudentAnswers, countStudents } from '@/lib/db';
 
+// Always respond fresh — never cache game state
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
+  { params }: { params: { code: string } }
 ) {
   try {
-    const { code } = await params;
+    const { code } = params;
     const game = await getGameByCode(code);
 
     if (!game) {
@@ -30,7 +33,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({
+    const responseData = {
       game: {
         id: game.id,
         join_code: game.join_code,
@@ -40,6 +43,12 @@ export async function GET(
       currentRoundQuestions,
       studentAnswers,
       studentCount,
+    };
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+      },
     });
   } catch (err) {
     console.error('GET /api/game-state/[code] error:', err);
