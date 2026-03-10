@@ -31,7 +31,7 @@ Evaluate the submission using the rubric above. Return your response as a JSON o
 }`;
 
   const response = await client.messages.create({
-    model: 'claude-opus-4-6',
+    model: 'claude-3-5-haiku-20241022',
     max_tokens: 600,
     system:
       'You are an educational evaluator scoring student-written prompts. Follow the rubric precisely and return only valid JSON with no markdown formatting.',
