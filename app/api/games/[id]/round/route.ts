@@ -4,6 +4,9 @@ import { getGameById, sql, getNeonUrl } from '@/lib/db';
 import { scorePromptWriting } from '@/lib/claude';
 import type { Question, Answer } from '@/lib/types';
 
+// Allow up to 5 minutes — LLM scoring can take a while with many students
+export const maxDuration = 300;
+
 const MAX_ROUND = 4;
 
 export async function POST(
@@ -80,15 +83,23 @@ export async function POST(
     }
 
     // If ending round 3 (prompt writing), run LLM scoring first
+    let scoringResult: { scored: number; failed: number; firstError?: string } | undefined;
     if (game.current_round === 3 && game.status === 'active') {
       // Set status to 'scoring' to prevent double-clicks
       await sql`UPDATE games SET status = 'scoring' WHERE id = ${gameId}`;
 
       try {
-        await scoreRound3(gameId);
+        scoringResult = await scoreRound3(gameId);
+        if (scoringResult.failed > 0) {
+          console.error(
+            `[round] LLM scoring: ${scoringResult.scored} succeeded, ${scoringResult.failed} failed. First error: ${scoringResult.firstError}`
+          );
+        } else {
+          console.log(`[round] LLM scoring complete: ${scoringResult.scored} answers scored.`);
+        }
       } catch (err) {
-        console.error('LLM scoring failed:', err);
-        // Reset status so teacher can try again or proceed anyway
+        console.error('LLM scoring threw unexpectedly:', err);
+        // Reset status so teacher can try again
         await sql`UPDATE games SET status = 'active' WHERE id = ${gameId}`;
         return NextResponse.json({ error: 'LLM scoring failed, please try again' }, { status: 500 });
       }
@@ -112,22 +123,25 @@ export async function POST(
 
     const updated = await getGameById(gameId);
     console.log('[round] updated game:', updated);
-    const pgHost = getNeonUrl().replace(/^[^@]+@/, '').replace(/\/.*$/, '');
-    const pgHostRaw = (process.env.POSTGRES_URL ?? '').replace(/^[^@]+@/, '').replace(/\/.*$/, '');
-    return NextResponse.json({ game: updated, _debug: { pgHost, pgHostRaw } });
+    return NextResponse.json({ game: updated, scoringResult: scoringResult ?? null });
   } catch (err) {
     console.error('POST /api/games/[id]/round error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-async function scoreRound3(gameId: number): Promise<void> {
+async function scoreRound3(
+  gameId: number
+): Promise<{ scored: number; failed: number; firstError?: string }> {
   // Get the prompt writing question with rubric
   const questionResult = await sql<Question>`
     SELECT * FROM questions WHERE round_number = 3 AND question_type = 'prompt_writing' LIMIT 1
   `;
   const question = questionResult.rows[0];
-  if (!question || !question.rubric) return;
+  if (!question || !question.rubric) {
+    console.error('[scoreRound3] No prompt_writing question with rubric found — skipping LLM scoring.');
+    return { scored: 0, failed: 0, firstError: 'No rubric found for Round 3 question' };
+  }
 
   // Get all unscored prompt answers for this game
   const answersResult = await sql<Answer>`
@@ -137,7 +151,11 @@ async function scoreRound3(gameId: number): Promise<void> {
       AND score IS NULL
   `;
 
-  // Score each answer in parallel
+  let scored = 0;
+  let failed = 0;
+  let firstError: string | undefined;
+
+  // Score each answer in parallel, tracking successes and failures
   await Promise.all(
     answersResult.rows.map(async (answer) => {
       try {
@@ -147,15 +165,20 @@ async function scoreRound3(gameId: number): Promise<void> {
           SET score = ${score}, scored_at = NOW()
           WHERE id = ${answer.id}
         `;
-        // Store rationale in a comment (log only — no dedicated column)
-        console.log(`Scored student ${answer.student_id}: ${score}/20 — ${rationale}`);
+        console.log(`[scoreRound3] Scored student ${answer.student_id}: ${score}/20 — ${rationale}`);
+        scored++;
       } catch (err) {
-        console.error(`Scoring failed for answer ${answer.id}:`, err);
-        // Assign 0 on failure so it doesn't block the game
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[scoreRound3] Scoring failed for answer ${answer.id}:`, err);
+        if (!firstError) firstError = msg;
+        failed++;
+        // Assign 0 on failure so the game can still advance
         await sql`
           UPDATE answers SET score = 0, scored_at = NOW() WHERE id = ${answer.id}
         `;
       }
     })
   );
+
+  return { scored, failed, firstError };
 }

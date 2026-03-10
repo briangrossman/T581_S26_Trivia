@@ -123,6 +123,13 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
         if (data.game.status === 'finished') {
           setShowFinalScores(true);
         }
+        // Surface LLM scoring failures so the teacher knows to check their API key / Vercel logs
+        if (data.scoringResult?.failed > 0) {
+          setError(
+            `LLM scoring failed for ${data.scoringResult.failed} student(s) — scores set to 0. ` +
+            `Check ANTHROPIC_API_KEY in Vercel env vars. Error: ${data.scoringResult.firstError ?? 'unknown'}`
+          );
+        }
         fetchGameState();
       } else {
         setError(data.error || 'Action failed');
@@ -339,10 +346,10 @@ export default function TeacherGamePage({ params }: { params: { id: string } }) 
                       <tr key={score.student_id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="px-3 py-2 text-gray-400 font-mono">{idx + 1}</td>
                         <td className="px-3 py-2 font-medium">{score.username}</td>
-                        <td className="px-3 py-2 text-center">{score.round_1_score > 0 ? score.round_1_score : '—'}</td>
-                        <td className="px-3 py-2 text-center">{score.round_2_score > 0 ? score.round_2_score : '—'}</td>
-                        <td className="px-3 py-2 text-center">{score.round_3_score > 0 ? score.round_3_score : '—'}</td>
-                        <td className="px-3 py-2 text-center">{score.round_4_score > 0 ? score.round_4_score : '—'}</td>
+                        <td className="px-3 py-2 text-center">{game.current_round > 1 || game.status === 'finished' ? score.round_1_score : '—'}</td>
+                        <td className="px-3 py-2 text-center">{game.current_round > 2 || game.status === 'finished' ? score.round_2_score : '—'}</td>
+                        <td className="px-3 py-2 text-center">{game.current_round > 3 || game.status === 'finished' ? score.round_3_score : '—'}</td>
+                        <td className="px-3 py-2 text-center">{game.current_round > 4 || game.status === 'finished' ? score.round_4_score : '—'}</td>
                         <td className="px-3 py-2 text-center font-bold text-indigo-700">{score.total_score}</td>
                       </tr>
                     ))}
